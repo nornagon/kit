@@ -76,5 +76,8 @@ object Intersections {
     b.segments.exists(intersects(a, _))
   }
 
+  def intersects(a: Polygon, b: Polygon): Boolean =
+    a.segments.exists(aSeg => b.segments.exists(bSeg => intersects(aSeg, bSeg)))
+
   def intersections(seg: Segment2, aabb: AABB): Iterable[Intersection] = aabb.segments.flatMap(s => intersections(s, seg))
 }
