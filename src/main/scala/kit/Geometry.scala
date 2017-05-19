@@ -4,10 +4,10 @@ package kit
 object Angle {
   /** Returns an angle equivalent to `a` but within the range [-π, π] */
   def clipToPi(a: Double): Double = {
-    if (a < -Math.PI)
-      a + (Math.PI * 2 * ((a + Math.PI) / (Math.PI * 2)).floor.abs)
-    else if (a > Math.PI)
-      a - (Math.PI * 2 * ((a - Math.PI) / (Math.PI * 2)).ceil.abs)
+    if (a < -math.Pi)
+      a + (math.Pi * 2 * ((a + math.Pi) / (math.Pi * 2)).floor.abs)
+    else if (a > math.Pi)
+      a - (math.Pi * 2 * ((a - math.Pi) / (math.Pi * 2)).ceil.abs)
     else
       a
   }
@@ -28,10 +28,10 @@ case class Vec2(x: Double, y: Double) {
   def ->(other: Vec2): Vec2 = other - this
 
   def lengthSquared: Double = x * x + y * y
-  def length: Double = Math.sqrt(lengthSquared)
+  def length: Double = math.sqrt(lengthSquared)
   def normed: Vec2 = if (length == 0) Vec2(0, 0) else this / length
 
-  def toAngle: Double = Math.atan2(y, x)
+  def toAngle: Double = -math.atan2(y, x)
 
   def perp = Vec2(-y, x)
 
@@ -43,9 +43,9 @@ case class Vec2(x: Double, y: Double) {
 }
 
 object Vec2 {
-  def forAngle(t: Double) = Vec2(Math.cos(t), Math.sin(t))
+  def forAngle(t: Double) = Vec2(math.cos(t), -math.sin(t))
   def aroundCircle(numPoints: Int, startAngle: Double = 0): Seq[Vec2] =
-    for (i <- 0 until numPoints) yield Vec2.forAngle(i.toDouble / numPoints * 2 * Math.PI + startAngle)
+    for (i <- 0 until numPoints) yield Vec2.forAngle(i.toDouble / numPoints * 2 * math.Pi + startAngle)
 }
 
 case class Vec3(x: Double, y: Double, z: Double) {
@@ -67,7 +67,7 @@ case class Vec3(x: Double, y: Double, z: Double) {
   def ->(other: Vec3): Vec3 = other - this
 
   def lengthSquared: Double = x * x + y * y + z * z
-  def length: Double = Math.sqrt(lengthSquared)
+  def length: Double = math.sqrt(lengthSquared)
   def normed: Vec3 = if (length == 0) Vec3(0, 0, 0) else this / length
 }
 
@@ -82,7 +82,7 @@ case class Vec4(x: Double, y: Double, z: Double, w: Double) {
   def ->(other: Vec4): Vec4 = other - this
 
   def lengthSquared: Double = x * x + y * y + z * z + w * w
-  def length: Double = Math.sqrt(lengthSquared)
+  def length: Double = math.sqrt(lengthSquared)
   def normed: Vec4 = if (length == 0) Vec4(0, 0, 0, 0) else this / length
 }
 
@@ -167,11 +167,11 @@ object Mat33 {
   )
   def translate(v: Vec2): Mat33 = translate(v.x, v.y)
   def rotate(theta: Double): Mat33 = {
-    val c = Math.cos(theta)
-    val s = Math.sin(theta)
+    val c = math.cos(theta)
+    val s = -math.sin(theta)
     Mat33(
-      c, s, 0,
-      -s, c, 0,
+      c, -s, 0,
+      s, c, 0,
       0, 0, 1
     )
   }
@@ -236,7 +236,7 @@ object Mat44 {
   )
   def rotate(xp: Double, yp: Double, zp: Double, a: Double): Mat44 = {
     val c = math.cos(a)
-    val s = math.sin(a)
+    val s = -math.sin(a)
     val Vec3(x, y, z) = Vec3(xp, yp, zp).normed
     Mat44(
       x*x*(1-c)+c, x*y*(1-c)-z*s, x*z*(1-c)+y*s, 0,
@@ -332,7 +332,7 @@ case class Circle2(c: Vec2, r: Double) extends Shape2 {
   def toPolygon(numPoints: Int, startAngle: Double = 0): Polygon =
     Polygon(Vec2.aroundCircle(numPoints, startAngle).map(_ * r)).translate(c)
 
-  def area: Double = Math.PI * r * r
+  def area: Double = math.Pi * r * r
 }
 
 case class Circle3 private (s: Sphere3, p: Plane3) {
@@ -341,8 +341,8 @@ case class Circle3 private (s: Sphere3, p: Plane3) {
     Polygon3(
       for (i <- 0 until numPoints)
         yield (
-          a * math.cos(i.toDouble / numPoints * Math.PI * 2) +
-          b * math.sin(i.toDouble / numPoints * Math.PI * 2)
+          a * math.cos(i.toDouble / numPoints * math.Pi * 2) +
+          b * math.sin(i.toDouble / numPoints * math.Pi * 2)
         ) * s.r + s.c
     )
   }
@@ -359,11 +359,11 @@ case class Arc2(c: Vec2, rx: Double, ry: Double, rotation: Double, startAngle: D
   assert(rotation == 0)
   // https://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
   def toSVGArc: SVGArc = {
-    val rotate = Mat33.rotate(-rotation)
+    val rotate = Mat33.rotate(rotation)
     val r = Vec2(rx, ry)
     val v0 = rotate * (r o Vec2.forAngle(startAngle)) + c
     val v1 = rotate * (r o Vec2.forAngle(startAngle + sweptAngle)) + c
-    SVGArc(v0, v1, rx, ry, rotation, sweptAngle.abs > Math.PI, sweptAngle > 0)
+    SVGArc(v0, v1, rx, ry, rotation, sweptAngle.abs > math.Pi, sweptAngle > 0)
   }
 
   def translate(p: Vec2): Arc2 = copy(c = c + p)
@@ -401,7 +401,7 @@ case class SVGArc(start: Vec2, end: Vec2, rx: Double, ry: Double, xRot: Double, 
   def toArc2: Arc2 = {
     val v1p = Mat33.rotate(xRot) * ((start - end) / 2)
     val sgn = if (largeArc != sweep) 1 else -1
-    //val radiiCheck = Math.pow(v1p.x, 2)/Math.pow(this.rx, 2) + Math.pow(v1p.y, 2)/Math.pow(this.ry, 2)
+    //val radiiCheck = math.pow(v1p.x, 2)/math.pow(this.rx, 2) + math.pow(v1p.y, 2)/math.pow(this.ry, 2)
     //val rx = if (radiiCheck > 1) math.sqrt(radiiCheck) * this.rx else this.rx
     //val ry = if (radiiCheck > 1) math.sqrt(radiiCheck) * this.ry else this.ry
     val radicand = (rx*rx * ry*ry - rx*rx * v1p.y*v1p.y - ry*ry * v1p.x*v1p.x) / (rx*rx * v1p.y*v1p.y + ry*ry * v1p.x*v1p.x)
@@ -416,10 +416,10 @@ case class SVGArc(start: Vec2, end: Vec2, rx: Double, ry: Double, xRot: Double, 
     val startAngle = angleBetween(Vec2(1, 0), v)
     val dTheta = angleBetween(v, (-v1p - cp) o recipRadius)
     val sweptAngle = (
-      if (!sweep && dTheta > 0) dTheta - 2 * Math.PI
-      else if (sweep && dTheta < 0) dTheta + 2 * Math.PI
+      if (!sweep && dTheta > 0) dTheta - 2 * math.Pi
+      else if (sweep && dTheta < 0) dTheta + 2 * math.Pi
       else dTheta
-    ) % (2 * Math.PI)
+    ) % (2 * math.Pi)
     Arc2(c, rx, ry, xRot, startAngle, sweptAngle)
   }
 
@@ -443,7 +443,7 @@ case class Segment2(a: Vec2, b: Vec2) extends Shape2 {
   def closestPointTo(p: Vec2): Vec2 = {
     val l2 = (a - b).lengthSquared
     if (l2 == 0) return a
-    val t = Math.max(0, Math.min(1, ((p - a) dot (b - a)) / l2))
+    val t = math.max(0, math.min(1, ((p - a) dot (b - a)) / l2))
     a + (b - a) * t
   }
 
@@ -658,8 +658,8 @@ case class AABB(lower: Vec2, upper: Vec2) extends Shape2 {
 
   /** Returns the closest point to `point` that's inside the AABB. */
   def clip(point: Vec2): Vec2 = Vec2(
-    Math.max(lower.x, Math.min(upper.x, point.x)),
-    Math.max(lower.y, Math.min(upper.y, point.y))
+    math.max(lower.x, math.min(upper.x, point.x)),
+    math.max(lower.y, math.min(upper.y, point.y))
   )
 
   def expand(k: Double): AABB = AABB(lower - Vec2(k, k), upper + Vec2(k, k))
