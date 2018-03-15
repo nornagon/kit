@@ -57,7 +57,6 @@ object Intersections {
 
   def intersects(a: Segment2, b: Segment2): Boolean = intersections(a, b).nonEmpty
 
-
   def intersects(a: AABB, b: AABB): Boolean =
     a.lower.x <= b.upper.x &&
       b.lower.x <= a.upper.x &&

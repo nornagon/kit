@@ -50,6 +50,9 @@ object FOV {
 
   /** Amit Patel's algorithm for computing field of view.
     *
+    * TODO: it'd be fairly easy to add segment normals to this, to cull backfaces
+    * and allow for some other fancy tricks :)
+    *
     * @see http://www.redblobgames.com/articles/visibility/
     * @param source The source of the "vision"
     * @param segments A list of segments which block vision.
@@ -146,6 +149,13 @@ object FOV {
   /** Raycasting approach to computing FOV.
     *
     * Heavily based on https://legends2k.github.io/2d-fov/design.html
+    *
+    * TODO: currently, the algorithm expects `segments` to be non-intersecting, and will produce weird artifacts if they
+    * are not. This can be solved by simply breaking all the segments into pieces wherever they overlap, e.g. by
+    * Bentley-Ottman or Balaban95.
+    *
+    * Also, this seems to be about 10x slower than calculateFOV().
+    *
     * @param source The source of the "vision"
     * @param segments A list of segments which block vision.
     * @param bounds A bounding box beyond which vision will not propagate.
@@ -154,9 +164,8 @@ object FOV {
   def calculateFOV2(source: Vec2, segments: Seq[Segment2], bounds: AABB): Seq[Vec2] = {
     if (segments.isEmpty)
       return bounds.corners
-    // thought: add all the sight lines as segments to the boundary use Bentley-Ottmann for (n + k) lg n instead of n^2
-    // https://en.wikipedia.org/wiki/Bentley%E2%80%93Ottmann_algorithm
-    val maxDist = bounds.maxDimension / 2
+    // TODO: this should automatically truncate the segments to the bounds
+    val maxDist = (bounds.upper - bounds.lower).length / 2
     val points = mutable.Set.empty[Vec2] ++ bounds.toPolygon.points
     val segmentsAtPoint = mutable.Map.empty[Vec2, Seq[Vec2]].withDefaultValue(Seq.empty)
     for (seg <- segments) {
