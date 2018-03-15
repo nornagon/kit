@@ -14,7 +14,7 @@ class Noise(seed: Int) {
     Grad(1, 0, 1), Grad(-1, 0, 1), Grad(1, 0, -1), Grad(-1, 0, -1),
     Grad(0, 1, 1), Grad(0, -1, 1), Grad(0, 1, -1), Grad(0, -1, -1)
   )
-  private val grads = Circle2(Vec2(0, 0), 1).toPolygon(12).points.map { case Vec2(x, y) => Grad(x, y, 0) }
+  private val grads = grad3//Circle2(Vec2(0, 0), 1).toPolygon(12).points.map { case Vec2(x, y) => Grad(x, y, 0) }
   private val p = Seq(
     151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140,
     36, 103, 30, 69, 142, 8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120,
@@ -61,6 +61,8 @@ class Noise(seed: Int) {
   private def G(n: Int): Double = -(1/Math.sqrt(n + 1.0) - 1) / n
   private val F2 = F(2)
   private val G2 = G(2)
+  private val F3 = F(3) // = 1/3
+  private val G3 = G(3) // = 1/6
 
   // 2D simplex noise
   def simplex2(xin: Double, yin: Double): Double = {
@@ -115,5 +117,93 @@ class Noise(seed: Int) {
     // Add contributions from each corner to get the final noise value.
     // The result is scaled to return values in the interval [-1,1].
     70 * (n0 + n1 + n2)
+  }
+
+  def simplex3(xin: Double, yin: Double, zin: Double): Double = {
+    // Skew the input space to determine which simplex cell we're in
+    val s = (xin + yin + zin) * F3 // Hairy factor for 3D
+    val i: Int = Math.floor(xin + s).toInt
+    val j: Int = Math.floor(yin + s).toInt
+    val k: Int = Math.floor(zin + s).toInt
+
+    val t = (i + j + k) * G3
+    // The x,y distances from the cell origin, unskewed.
+    val x0 = xin - i + t
+    val y0 = yin - j + t
+    val z0 = zin - k + t
+
+    // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
+    // Determine which simplex we are in.
+    val (i1, j1, k1, i2, j2, k2) =
+      if (x0 >= y0) {
+        if (y0 >= z0)      (1, 0, 0, 1, 1, 0)
+        else if (x0 >= z0) (1, 0, 0, 1, 0, 1)
+        else               (0, 0, 1, 1, 0, 1)
+      } else {
+        if (y0 < z0)       (0, 0, 1, 0, 1, 1)
+        else if (x0 < z0)  (0, 1, 0, 0, 1, 1)
+        else               (0, 1, 0, 1, 1, 0)
+      }
+    // A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
+    // a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
+    // a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
+    // c = 1/6.
+
+    // Offsets for second corner
+    val x1 = x0 - i1 + G3
+    val y1 = y0 - j1 + G3
+    val z1 = z0 - k1 + G3
+
+    // Offsets for third corner
+    val x2 = x0 - i2 + G3 * 2
+    val y2 = y0 - j2 + G3 * 2
+    val z2 = z0 - k2 + G3 * 2
+
+    // Offsets for fourth corner
+    val x3 = x0 - 1 + G3 * 3
+    val y3 = y0 - 1 + G3 * 3
+    val z3 = z0 - 1 + G3 * 3
+
+    // Work out the hashed gradient indices of the four simplex corners
+    val ii = i & 255
+    val jj = j & 255
+    val kk = k & 255
+    val gi0 = gradP(ii + perm(jj + perm(kk)))
+    val gi1 = gradP(ii + i1 + perm(jj + j1 + perm(kk + k1)))
+    val gi2 = gradP(ii + i2 + perm(jj + j2 + perm(kk + k2)))
+    val gi3 = gradP(ii + 1 + perm(jj + 1 + perm(kk + 1)))
+
+    // Calculate the contribution from the four corners
+    val t0 = 0.6 - x0*x0 - y0*y0 - z0*z0
+    val n0 =
+      if (t0 < 0) 0
+      else {
+        val t0_2 = t0 * t0
+        t0_2 * t0_2 * gi0.dot3(x0, y0, z0) // (x,y) of grad3 used for 2D gradient
+      }
+    val t1 = 0.6 - x1*x1 - y1*y1 - z1*z1
+    val n1 =
+      if (t1 < 0) 0
+      else {
+        val t1_2 = t1 * t1
+        t1_2 * t1_2 * gi1.dot3(x1, y1, z1)
+      }
+    val t2 = 0.6 - x2*x2 - y2*y2 - z2*z2
+    val n2 =
+      if (t2 < 0) 0
+      else {
+        val t2_2 = t2 * t2
+        t2_2 * t2_2 * gi2.dot3(x2, y2, z2)
+      }
+    val t3 = 0.6 - x3*x3 - y3*y3 - z3*z3
+    val n3 =
+      if (t3 < 0) 0
+      else {
+        val t3_2 = t3 * t3
+        t3_2 * t3_2 * gi3.dot3(x3, y3, z3)
+      }
+    // Add contributions from each corner to get the final noise value.
+    // The result is scaled to return values in the interval [-1,1].
+    32 * (n0 + n1 + n2 + n3)
   }
 }
