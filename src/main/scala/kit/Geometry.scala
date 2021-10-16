@@ -126,7 +126,7 @@ case class Mat33(a: Double, b: Double, c: Double, d: Double, e: Double, f: Doubl
 
   def *(v: Vec2): Vec2 = this * Vec3(v.x, v.y, 1) match { case Vec3(x, y, _) => Vec2(x, y) }
 
-  def inverse = {
+  def inverse: Mat33 = {
     val ai = e * i - f * h
     val bi = -(d * i - f * g)
     val ci = d * h - e * g
@@ -146,7 +146,7 @@ case class Mat33(a: Double, b: Double, c: Double, d: Double, e: Double, f: Doubl
     ) * (1 / det)
   }
 
-  def determinant = {
+  def determinant: Double = {
     val ai = e * i - f * h
     val bi = -(d * i - f * g)
     val ci = d * h - e * g
@@ -344,6 +344,21 @@ case class Circle2(c: Vec2, r: Double) extends Shape2 {
     Polygon(Vec2.aroundCircle(numPoints, startAngle).map(_ * r)).translate(c)
 
   def area: Double = math.Pi * r * r
+
+  def truncate(segment: Segment2): Option[Segment2] = {
+    val closestApproach = segment.closestPointTo(c)
+    if ((closestApproach - c).lengthSquared >= r * r) return None
+    Intersections.intersections(this, segment).toSeq match {
+      case Seq(Intersections.PointIntersection(a), Intersections.PointIntersection(b)) =>
+        Some(Segment2(a, b))
+      case Seq(Intersections.PointIntersection(x)) =>
+        if ((segment.a - c).lengthSquared < r * r)
+          Some(Segment2(segment.a, x))
+        else
+          Some(Segment2(x, segment.b))
+      case Seq() => Some(segment)
+    }
+  }
 }
 
 object Circle2 {
@@ -499,6 +514,7 @@ case class Polygon(points: Seq[Vec2]) extends Shape2 {
 
   /** Translate all the points in the polygon by `offset`. */
   def translate(offset: Vec2): Polygon = Polygon(points map (_ + offset))
+  def translate(x: Double, y: Double): Polygon = translate(Vec2(x, y))
   /** Rotate all the points in the polygon about Vec2(0, 0). */
   def rotateAroundOrigin(angle: Double): Polygon = Polygon(points map (_.rotate(angle)))
   /** Scale all the points in the polygon by `k`. */
@@ -536,6 +552,105 @@ case class Polygon(points: Seq[Vec2]) extends Shape2 {
       if (p.y > upperY) upperY = p.y
     }
     AABB(Vec2(lowerX, lowerY), Vec2(upperX, upperY))
+  }
+
+  def contains(p: Vec2): Boolean = {
+    // TODO: broken
+    // (cribbed from SkPath::contains)
+    ???
+    if (!aabb.contains(p)) return false
+
+    def between(a: Double, b: Double, c: Double): Boolean =
+      (a - b) * (c - b) <= 0
+    def checkOnCurve(p: Vec2, s: Segment2): Boolean =
+      if (s.a.y == s.b.y)
+        between(s.a.x, p.x, s.b.x) && p.x != s.b.x
+      else
+        p.x == s.a.x && p.y == s.a.y
+
+    var onCurveCount = 0
+    def windingLine(seg: Segment2): Int = {
+      var Vec2(x0, y0) = seg.a
+      var Vec2(x1, y1) = seg.b
+      val dy = y1 - y0
+      var dir = 1
+      if (y0 > y1) {
+        dir = -1
+        val tmp = y1
+        y1 = y0
+        y0 = tmp
+      }
+      if (p.y < y0 || p.y > y1) return 0
+      if (checkOnCurve(p, seg)) {
+        onCurveCount += 1
+        return 0
+      }
+      if (p.y == y1) return 0
+      val cross = (x1 - x0) * (p.y - seg.a.y) - dy * (p.x - x0)
+      if (cross == 0) {
+        if (p.x != x1 || p.y != seg.b.y) {
+          onCurveCount += 1
+        }
+        dir = 0
+      } else if ((cross > 0 && dir > 0) || (cross < 0 && dir < 0)) {
+        dir = 0
+      }
+      dir
+    }
+
+    var w = 0
+    for (seg <- segments) {
+      w += windingLine(seg)
+    }
+    if (w > 0) return true
+    if (onCurveCount <= 1) return onCurveCount == 1
+    if (onCurveCount % 2 == 0) return true
+    // TODO: tangent checking
+    return false
+  }
+
+  // Cyrus-Beck
+  // Ref: https://web.archive.org/web/20110725233122/http://softsurfer.com/Archive/algorithm_0111/algorithm_0111.htm#intersect2D_SegPoly()
+  def truncate(segment: Segment2): Option[Segment2] = {
+    if (points.size < 3) return None
+    require(!isCCW)
+    var t_e = 0d
+    var t_l = 1d
+    val dS = segment.b - segment.a
+
+    val epsilon = 0.00000001d
+
+    for (i <- points.indices) {
+      val v0 = points(i)
+      val v1 = points((i + 1) % points.size)
+      val e = v1 - v0
+      val n = e.cross(segment.a - v0)
+      val d = -e.cross(dS)
+      if (math.abs(d) < epsilon) {
+        if (n < 0)
+          return None
+      } else {
+        val t = n / d
+        if (d < 0) {
+          if (t > t_e) {
+            t_e = t
+            if (t_e > t_l)
+              return None
+          }
+        } else {
+          if (t < t_l) {
+            t_l = t
+            if (t_l < t_e)
+              return None
+          }
+        }
+      }
+    }
+
+    Some(Segment2(
+      segment.a + dS * t_e,
+      segment.a + dS * t_l
+    ))
   }
 
   def toSVG: String = {
@@ -597,6 +712,7 @@ case class AABB(lower: Vec2, upper: Vec2) extends Shape2 {
   def height: Double = upper.y - lower.y
   def maxDimension: Double = width max height
   def minDimension: Double = width min height
+  def area: Double = width * height
   def center: Vec2 = lower + (upper - lower) * 0.5
 
   def toPolygon: Polygon = Polygon(Seq(lower, lower.copy(x = upper.x), upper, lower.copy(y = upper.y)))
@@ -720,4 +836,7 @@ case class AABB(lower: Vec2, upper: Vec2) extends Shape2 {
     val halfDim = Vec2(side, side) / 2
     AABB(center - halfDim, center + halfDim)
   }
+
+  /** Flip about x=y */
+  def flip: AABB = AABB(Vec2(lower.y, lower.x), Vec2(upper.y, upper.x))
 }

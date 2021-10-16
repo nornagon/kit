@@ -79,4 +79,35 @@ object Intersections {
     a.segments.exists(aSeg => b.segments.exists(bSeg => intersects(aSeg, bSeg)))
 
   def intersections(seg: Segment2, aabb: AABB): Iterable[Intersection] = aabb.segments.flatMap(s => intersections(s, seg))
+
+  def intersections(c: Circle2, seg: Segment2): Iterable[Intersection] = {
+    val da = seg.a - c.c
+    val db = seg.b - c.c
+    val r1 = c.r
+    val r2 = 0 /* segment radius */
+    val rsum = r1 + r2
+
+    val qa = (da dot da) - 2.0f * (da dot db) + (db dot db)
+    val qb = (da dot db) - (da dot da)
+    val det = qb * qb - qa * ((da dot da) - rsum * rsum)
+
+    if (det >= 0.0f) {
+      val disc = math.sqrt(det)
+      val t1 = (-qb - disc) / qa
+      if (0.0f <= t1 && t1 <= 1.0f) {
+        val n = da.lerp(db, t1).normed
+
+        val point = seg.a.lerp(seg.b, t1) - n * r2
+        return Some(PointIntersection(point))
+      }
+      val t2 = (-qb + disc) / qa
+      if (0.0f <= t2 && t2 <= 1.0f) {
+        val n = da.lerp(db, t2).normed
+
+        val point = seg.a.lerp(seg.b, t2) - n * r2
+        return Some(PointIntersection(point))
+      }
+    }
+    None
+  }
 }

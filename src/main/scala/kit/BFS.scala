@@ -28,7 +28,7 @@ object BFS {
               path.append(t)
               x = t
             }
-            return Some(path.reverse)
+            return Some(path.reverse.toSeq)
           }
           q.enqueue(n)
         }
@@ -55,18 +55,18 @@ object BFS {
     visited.toSet
   }
 
-  def dijkstra[T](from: T, links: T => Iterable[(T, Double)]): (Map[T, Double], Map[T, T]) = {
+  def dijkstra[T, B](from: T, links: T => Iterable[(T, B)])(implicit num: Numeric[B]): (Map[T, B], Map[T, T]) = {
     val active = mutable.Set.empty[T]
-    val distance = mutable.Map.empty[T, Double] // distance to k from source
+    val distance = mutable.Map.empty[T, B] // distance to k from source
     val shortestApproach = mutable.Map.empty[T, T] // shortest approach to get to k from source
-    distance += from -> 0
+    distance += from -> num.zero
     active += from
     while (active.nonEmpty) {
       val a = active.minBy(distance)
       active.remove(a)
       for ((n, c) <- links(a)) {
-        val alt = distance(a) + c
-        if (!distance.contains(n) || alt < distance(n)) {
+        val alt = num.plus(distance(a), c)
+        if (!distance.contains(n) || num.lt(alt, distance(n))) {
           distance(n) = alt
           shortestApproach(n) = a
         }
@@ -75,11 +75,11 @@ object BFS {
     (distance.toMap, shortestApproach.toMap)
   }
 
-  def dijkstraShortest[T](from: T, links: T => Iterable[(T, Double)], pred: T => Boolean): Option[Seq[T]] = {
+  def dijkstraShortest[T, B](from: T, links: T => Iterable[(T, B)], pred: T => Boolean)(implicit num: Numeric[B]): Option[Seq[T]] = {
     val active = mutable.Set.empty[T]
-    val distance = mutable.Map.empty[T, Double] // distance to k from source
+    val distance = mutable.Map.empty[T, B] // distance to k from source
     val shortestApproach = mutable.Map.empty[T, T] // shortest approach to get to k from source
-    distance += from -> 0
+    distance += from -> num.zero
     active += from
     while (active.nonEmpty) {
       val a = active.minBy(distance)
@@ -92,11 +92,11 @@ object BFS {
           path.append(t)
           x = t
         }
-        return Some(path.reverse)
+        return Some(path.reverse.toSeq)
       }
       for ((n, c) <- links(a)) {
-        val alt = distance(a) + c
-        if (!distance.contains(n) || alt < distance(n)) {
+        val alt = num.plus(distance(a), c)
+        if (!distance.contains(n) || num.lt(alt, distance(n))) {
           active += n
           distance(n) = alt
           shortestApproach(n) = a

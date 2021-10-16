@@ -137,7 +137,7 @@ object PoissonDisk {
       val activeIdx = r.between(0, active.size)
       val point = active(activeIdx)
       val minDistHere = minDist(point)
-      assert(minDistHere > 0)
+      assert(minDistHere > 0, s"minDist must be > 0, but was $minDistHere")
       (1 to maxPlacementAttempts).view map (_ => point + r.withinAnnulus(minDistHere, minDistHere * 2)) find canPlace match {
         case Some(p) =>
           grid.get(p).append(p)

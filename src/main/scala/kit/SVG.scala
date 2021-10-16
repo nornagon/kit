@@ -178,7 +178,7 @@ object MicroSyntax {
       ~ number ~ `comma-wsp`
       ~ number ~ `comma-wsp`
       ~ number ~ wsp.rep ~ ")").map {
-      case (a, b, c, d, e, f) => Mat33(a, b, c, d, e, f, 0, 0, 1)
+      case (a, b, c, d, e, f) => Mat33(a, c, e, b, d, f, 0, 0, 1)
     }
     lazy val translate = P("translate" ~/ wsp.rep ~ "(" ~/ wsp.rep ~ number ~ (`comma-wsp` ~ number).? ~ wsp.rep ~ ")").map {
       case (tx, ty) => Mat33.translate(tx, ty.getOrElse(0))
@@ -187,14 +187,14 @@ object MicroSyntax {
       case (sx, sy) => Mat33.scale(sx, sy.getOrElse(sx))
     }
     lazy val rotate = P("rotate" ~/ wsp.rep ~ "(" ~/ wsp.rep ~ number ~ (`comma-wsp` ~ number ~ `comma-wsp` ~ number).? ~ wsp.rep ~ ")").map {
-      case (angle, Some((cx, cy))) => Mat33.translate(-cx, -cy) * Mat33.rotate(angle) * Mat33.translate(cx, cy) // TODO: not sure if this should be flipped?
-      case (angle, None) => Mat33.rotate(angle)
+      case (angle, Some((cx, cy))) => Mat33.translate(-cx, -cy) * Mat33.rotate(-angle * math.Pi / 180) * Mat33.translate(cx, cy) // TODO: not sure if this should be flipped?
+      case (angle, None) => Mat33.rotate(-angle * math.Pi / 180)
     }
     lazy val skewX = P("skewX" ~/ wsp.rep ~ "(" ~/ wsp.rep ~ number ~ wsp.rep ~ ")").map { angle => Mat33.skewX(angle) }
     lazy val skewY = P("skewY" ~/ wsp.rep ~ "(" ~/ wsp.rep ~ number ~ wsp.rep ~ ")").map { angle => Mat33.skewX(angle) }
   }
 
-  lazy val number = P((sign.? ~ `integer-constant`) | (sign.? ~ `floating-point-constant`)).!.map(_.toDouble)
+  lazy val number = P((sign.? ~ `floating-point-constant`) | (sign.? ~ `integer-constant`)).!.map(_.toDouble)
   lazy val flag = P(CharIn("01")).!.map(_ == "1")
   lazy val `comma-wsp` = P((wsp.rep(1) ~ comma.? ~ wsp.rep) | (comma ~ wsp.rep))
   lazy val comma = P(",")
